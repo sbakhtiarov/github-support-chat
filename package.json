@@ -1,0 +1,17 @@
+{
+  "name": "github-support-chat",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @github-support-chat/server\" \"npm run dev -w @github-support-chat/client\"",
+    "build": "npm run build -w @github-support-chat/shared && npm run build -w @github-support-chat/client && npm run build -w @github-support-chat/server",
+    "test": "npm run test -w @github-support-chat/server && npm run test -w @github-support-chat/client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}
