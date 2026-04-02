@@ -8,11 +8,13 @@ import { encodeSseEvent } from "@github-support-chat/shared";
 import type { AppConfig } from "./config.js";
 import type { ChatService } from "./chatService.js";
 import type { GithubDocsMcpClient } from "./mcpClient.js";
+import type { HubspotMcpClient } from "./hubspotMcpClient.js";
 
 interface CreateAppDependencies {
   config: AppConfig;
   chatService: ChatService;
-  mcpClient: GithubDocsMcpClient;
+  githubDocsMcpClient: GithubDocsMcpClient;
+  hubspotMcpClient: HubspotMcpClient;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,25 +33,27 @@ function writeChunkedText(res: express.Response, text: string) {
   }
 }
 
-export function createApp({ config, chatService, mcpClient }: CreateAppDependencies) {
+export function createApp({
+  config,
+  chatService,
+  githubDocsMcpClient,
+  hubspotMcpClient
+}: CreateAppDependencies) {
   const app = express();
 
   app.use(express.json());
 
   app.get("/api/health", async (_req, res) => {
-    let mcpReachable = false;
-
-    try {
-      await mcpClient.healthCheck();
-      mcpReachable = true;
-    } catch (error) {
-      console.error("Health check failed", error);
-    }
+    const [githubDocsMcp, hubspotMcp] = await Promise.all([
+      githubDocsMcpClient.getHealth(),
+      hubspotMcpClient.getHealth()
+    ]);
 
     const body: HealthResponse = {
-      ok: mcpReachable && config.openAiApiKey.trim().length > 0,
-      mcpReachable,
-      openAiConfigured: config.openAiApiKey.trim().length > 0
+      ok: githubDocsMcp.ok && hubspotMcp.ok && config.openAiApiKey.trim().length > 0,
+      openAiConfigured: config.openAiApiKey.trim().length > 0,
+      githubDocsMcp,
+      hubspotMcp
     };
 
     res.status(body.ok ? 200 : 503).json(body);
@@ -96,6 +100,13 @@ export function createApp({ config, chatService, mcpClient }: CreateAppDependenc
           items: reply.sources
         })
       );
+      if (reply.ticket) {
+        res.write(
+          encodeSseEvent("ticket", {
+            ticket: reply.ticket
+          })
+        );
+      }
       res.write(encodeSseEvent("done", {}));
     } catch (error) {
       const message =

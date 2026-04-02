@@ -1,3 +1,5 @@
+import type { PendingSupportTicketDraft } from "./supportTickets.js";
+
 export interface ConversationTurn {
   role: "user" | "assistant";
   content: string;
@@ -6,6 +8,7 @@ export interface ConversationTurn {
 interface ConversationRecord {
   turns: ConversationTurn[];
   updatedAt: number;
+  pendingTicketDraft?: PendingSupportTicketDraft;
 }
 
 export class ConversationStore {
@@ -29,6 +32,37 @@ export class ConversationStore {
 
     this.conversations.set(conversationId, {
       turns,
+      updatedAt: Date.now(),
+      pendingTicketDraft: existing?.pendingTicketDraft
+    });
+  }
+
+  getPendingTicketDraft(conversationId: string) {
+    this.cleanupExpired();
+    return this.conversations.get(conversationId)?.pendingTicketDraft ?? null;
+  }
+
+  setPendingTicketDraft(conversationId: string, draft: PendingSupportTicketDraft) {
+    this.cleanupExpired();
+
+    const existing = this.conversations.get(conversationId);
+    this.conversations.set(conversationId, {
+      turns: existing?.turns ?? [],
+      updatedAt: Date.now(),
+      pendingTicketDraft: draft
+    });
+  }
+
+  clearPendingTicketDraft(conversationId: string) {
+    this.cleanupExpired();
+
+    const existing = this.conversations.get(conversationId);
+    if (!existing) {
+      return;
+    }
+
+    this.conversations.set(conversationId, {
+      turns: existing.turns,
       updatedAt: Date.now()
     });
   }

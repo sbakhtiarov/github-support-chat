@@ -16,9 +16,15 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
+  overflow: hidden;
 }
 
 button,
@@ -27,18 +33,34 @@ textarea {
 }
 
 .app-shell {
-  min-height: 100vh;
-  padding: 48px 24px 120px;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.app-content {
+  width: min(1400px, 100%);
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(286px, 352px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .hero-card {
-  max-width: 760px;
-  padding: 32px;
+  align-self: start;
+  padding: 24px 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28px;
   background: rgba(15, 23, 42, 0.72);
   backdrop-filter: blur(14px);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.45);
+  overflow: auto;
 }
 
 .eyebrow,
@@ -60,37 +82,27 @@ textarea {
 }
 
 .hero-card h1 {
-  font-size: clamp(2.4rem, 5vw, 4.6rem);
-  line-height: 0.95;
+  font-size: clamp(2rem, 3.6vw, 3.2rem);
+  line-height: 1;
 }
 
 .hero-copy {
-  max-width: 58ch;
-  margin: 20px 0 0;
-  font-size: 1.05rem;
+  max-width: 62ch;
+  margin: 14px 0 0;
+  font-size: 1rem;
   color: rgba(244, 247, 251, 0.82);
 }
 
-.launcher-button {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  border: none;
-  border-radius: 999px;
-  padding: 14px 20px;
-  background: linear-gradient(135deg, #67e8f9, #22c55e);
-  color: #05202d;
-  font-weight: 700;
-  box-shadow: 0 16px 40px rgba(34, 197, 94, 0.28);
-  cursor: pointer;
+.chat-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
 }
 
 .chat-widget {
-  position: fixed;
-  right: 24px;
-  bottom: 88px;
-  width: min(420px, calc(100vw - 32px));
-  height: min(720px, calc(100vh - 120px));
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border-radius: 28px;
@@ -101,13 +113,16 @@ textarea {
 }
 
 .chat-header {
+  flex-shrink: 0;
   padding: 20px 22px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .chat-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -175,6 +190,61 @@ textarea {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.ticket-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 47, 73, 0.42);
+}
+
+.ticket-created {
+  background: rgba(20, 83, 45, 0.36);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+.ticket-status {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.ticket-kicker {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(244, 247, 251, 0.72);
+}
+
+.ticket-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ticket-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 12px 0 0;
+}
+
+.ticket-meta dt {
+  color: rgba(244, 247, 251, 0.64);
+}
+
+.ticket-meta dd {
+  margin: 0;
+  color: #f4f7fb;
+}
+
+.ticket-description,
+.ticket-next-step {
+  margin: 12px 0 0;
+}
+
+.ticket-next-step {
+  color: #8cf5c0;
+}
+
 .source-list p {
   margin-bottom: 8px;
   font-size: 0.85rem;
@@ -189,6 +259,7 @@ textarea {
 
 .error-banner {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -209,6 +280,7 @@ textarea {
 }
 
 .chat-form {
+  flex-shrink: 0;
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -235,23 +307,18 @@ textarea {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: 24px 16px 140px;
+    padding: 16px;
+  }
+
+  .app-content {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    gap: 18px;
   }
 
   .hero-card {
     padding: 24px;
-  }
-
-  .chat-widget {
-    right: 16px;
-    left: 16px;
-    width: auto;
-    bottom: 82px;
-    height: min(72vh, 640px);
-  }
-
-  .launcher-button {
-    right: 16px;
-    bottom: 16px;
+    max-height: min(32vh, 260px);
   }
 }

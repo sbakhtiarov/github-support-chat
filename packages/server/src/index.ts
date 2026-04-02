@@ -1,4 +1,5 @@
 import { ConversationStore } from "./conversationStore.js";
+import { HubspotMcpClient } from "./hubspotMcpClient.js";
 import { ChatService } from "./chatService.js";
 import { getConfig } from "./config.js";
 import { GithubDocsMcpClient } from "./mcpClient.js";
@@ -10,21 +11,24 @@ const conversationStore = new ConversationStore(
   config.conversationTtlMs,
   config.maxConversationTurns
 );
-const mcpClient = new GithubDocsMcpClient(config.mcpUrl);
+const githubDocsMcpClient = new GithubDocsMcpClient(config.mcpUrl);
+const hubspotMcpClient = new HubspotMcpClient(config.hubspotMcpUrl);
 const openAiGateway = new OpenAiChatGateway(
   config.openAiApiKey,
   config.openAiModel
 );
 const chatService = new ChatService({
   conversationStore,
-  mcpClient,
+  githubDocsMcpClient,
+  hubspotMcpClient,
   openAiGateway
 });
 
 const app = createApp({
   config,
   chatService,
-  mcpClient
+  githubDocsMcpClient,
+  hubspotMcpClient
 });
 
 app.listen(config.port, () => {

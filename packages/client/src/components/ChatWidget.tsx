@@ -1,7 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 
-import type { SourceItem } from "@github-support-chat/shared";
+import type { SourceItem, SupportTicketCard } from "@github-support-chat/shared";
 
 import { streamChatResponse } from "../lib/chatApi";
 
@@ -10,6 +10,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources: SourceItem[];
+  ticket?: SupportTicketCard;
   streaming?: boolean;
 }
 
@@ -26,8 +27,50 @@ function getConversationId() {
   return nextId;
 }
 
+function TicketCard({ ticket }: { ticket: SupportTicketCard }) {
+  const heading =
+    ticket.mode === "draft"
+      ? "Draft support ticket"
+      : ticket.mode === "created"
+        ? "Created support ticket"
+        : "Support ticket status";
+
+  return (
+    <section className={`ticket-card ticket-${ticket.mode}`}>
+      <p className="ticket-kicker">{heading}</p>
+      <h3>{ticket.subject}</h3>
+
+      <dl className="ticket-meta">
+        <dt>Ticket ID</dt>
+        <dd>{ticket.ticketId}</dd>
+        {ticket.customerEmail ? (
+          <>
+            <dt>Customer</dt>
+            <dd>{ticket.customerEmail}</dd>
+          </>
+        ) : null}
+        {ticket.priority ? (
+          <>
+            <dt>Priority</dt>
+            <dd>{ticket.priority}</dd>
+          </>
+        ) : null}
+        <dt>Status</dt>
+        <dd>{ticket.statusLabel}</dd>
+      </dl>
+
+      {ticket.descriptionPreview ? (
+        <p className="ticket-description">{ticket.descriptionPreview}</p>
+      ) : null}
+
+      {ticket.nextStepMessage ? (
+        <p className="ticket-next-step">{ticket.nextStepMessage}</p>
+      ) : null}
+    </section>
+  );
+}
+
 export function ChatWidget() {
-  const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isPending, setIsPending] = useState(false);
@@ -92,6 +135,16 @@ export function ChatWidget() {
             );
           }
 
+          if (event.type === "ticket") {
+            setMessages((current) =>
+              current.map((item) =>
+                item.id === assistantId
+                  ? { ...item, ticket: event.ticket }
+                  : item
+              )
+            );
+          }
+
           if (event.type === "error") {
             setError(event.message);
             setMessages((current) =>
@@ -137,99 +190,91 @@ export function ChatWidget() {
   };
 
   return (
-    <>
-      <button
-        className="launcher-button"
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-      >
-        {isOpen ? "Close support" : "Ask GitHub support"}
-      </button>
+    <section className="chat-widget" aria-label="GitHub support chat">
+      <header className="chat-header">
+        <div>
+          <p className="chat-kicker">Grounded by docs</p>
+          <h2>GitHub support chat</h2>
+        </div>
+      </header>
 
-      {isOpen ? (
-        <section className="chat-widget" aria-label="GitHub support chat">
-          <header className="chat-header">
-            <div>
-              <p className="chat-kicker">Grounded by docs</p>
-              <h2>GitHub support chat</h2>
-            </div>
-          </header>
+      <div className="chat-body">
+        {messages.length === 0 ? (
+          <div className="empty-state">
+            <p>Ask a GitHub docs question or ask me to create or track a support ticket.</p>
+            <p>
+              Example: How do pull requests work, create a support ticket for a checkout bug, or
+              check ticket 12345.
+            </p>
+          </div>
+        ) : null}
 
-          <div className="chat-body">
-            {messages.length === 0 ? (
-              <div className="empty-state">
-                <p>Ask a question about GitHub documentation.</p>
-                <p>
-                  Example: How do pull requests work, or how do GitHub Actions
-                  workflow triggers behave?
-                </p>
-              </div>
+        {messages.map((message) => (
+          <article
+            key={message.id}
+            className={`message-bubble message-${message.role}`}
+          >
+            {message.role === "assistant" ? (
+              <ReactMarkdown>{message.content || "Thinking..."}</ReactMarkdown>
+            ) : (
+              <p>{message.content}</p>
+            )}
+
+            {message.role === "assistant" && message.ticket ? (
+              <TicketCard ticket={message.ticket} />
             ) : null}
 
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={`message-bubble message-${message.role}`}
-              >
-                {message.role === "assistant" ? (
-                  <ReactMarkdown>{message.content || "Thinking..."}</ReactMarkdown>
-                ) : (
-                  <p>{message.content}</p>
-                )}
+            {message.role === "assistant" && message.sources.length > 0 ? (
+              <div className="source-list">
+                <p>Sources</p>
+                <ul>
+                  {message.sources.map((source) => (
+                    <li key={`${source.url}-${source.quote}`}>
+                      <a href={source.url} target="_blank" rel="noreferrer">
+                        {source.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
 
-                {message.role === "assistant" && message.sources.length > 0 ? (
-                  <div className="source-list">
-                    <p>Sources</p>
-                    <ul>
-                      {message.sources.map((source) => (
-                        <li key={`${source.url}-${source.quote}`}>
-                          <a href={source.url} target="_blank" rel="noreferrer">
-                            {source.title}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </article>
-            ))}
-          </div>
-
-          {error ? (
-            <div className="error-banner" role="alert">
-              <span>{error}</span>
-              {lastSubmittedMessage ? (
-                <button
-                  type="button"
-                  onClick={() => void submitMessage(lastSubmittedMessage)}
-                  disabled={isPending}
-                >
-                  Retry
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          <form
-            className="chat-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitMessage(input);
-            }}
-          >
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask about GitHub docs..."
-              rows={3}
+      {error ? (
+        <div className="error-banner" role="alert">
+          <span>{error}</span>
+          {lastSubmittedMessage ? (
+            <button
+              type="button"
+              onClick={() => void submitMessage(lastSubmittedMessage)}
               disabled={isPending}
-            />
-            <button type="submit" disabled={isPending || input.trim().length === 0}>
-              {isPending ? "Answering..." : "Send"}
+            >
+              Retry
             </button>
-          </form>
-        </section>
+          ) : null}
+        </div>
       ) : null}
-    </>
+
+      <form
+        className="chat-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submitMessage(input);
+        }}
+      >
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Ask about GitHub docs or support tickets..."
+          rows={3}
+          disabled={isPending}
+        />
+        <button type="submit" disabled={isPending || input.trim().length === 0}>
+          {isPending ? "Answering..." : "Send"}
+        </button>
+      </form>
+    </section>
   );
 }

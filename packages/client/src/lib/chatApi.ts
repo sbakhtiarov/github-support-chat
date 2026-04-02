@@ -1,4 +1,9 @@
-import type { ChatRequest, ChatStreamEvent, SourceItem } from "@github-support-chat/shared";
+import type {
+  ChatRequest,
+  ChatStreamEvent,
+  SourceItem,
+  SupportTicketCard
+} from "@github-support-chat/shared";
 import { createSseEventParser } from "@github-support-chat/shared";
 
 type ChatEventHandler = (event: ChatStreamEvent) => void;
@@ -27,6 +32,7 @@ export async function streamChatResponse(
       | { conversationId: string }
       | { text: string }
       | { items: SourceItem[] }
+      | { ticket: SupportTicketCard }
       | { message: string };
 
     switch (event.event) {
@@ -46,6 +52,12 @@ export async function streamChatResponse(
         onEvent({
           type: "sources",
           items: (data as { items: SourceItem[] }).items
+        });
+        break;
+      case "ticket":
+        onEvent({
+          type: "ticket",
+          ticket: (data as { ticket: SupportTicketCard }).ticket
         });
         break;
       case "done":

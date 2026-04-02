@@ -16,6 +16,7 @@ Create a `.env` file in `packages/server` with:
 OPENAI_API_KEY=your-key
 OPENAI_MODEL=gpt-4.1-mini
 MCP_URL=http://localhost:3000/mcp
+HUBSPOT_MCP_URL=http://localhost:3100/mcp
 PORT=4000
 ```
 

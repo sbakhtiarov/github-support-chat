@@ -1,62 +1,57 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
-import { ConversationStore } from "./conversationStore.js";
-import { ChatService } from "./chatService.js";
 import { createApp } from "./app.js";
 
 describe("chat API", () => {
   const config = {
     port: 4000,
     mcpUrl: "http://localhost:3000/mcp",
+    hubspotMcpUrl: "http://localhost:3100/mcp",
     openAiApiKey: "test-key",
     openAiModel: "test-model",
     conversationTtlMs: 60_000,
     maxConversationTurns: 10
   };
 
+  function createDependencies() {
+    return {
+      chatService: {
+        generateReply: vi.fn()
+      },
+      githubDocsMcpClient: {
+        getHealth: vi.fn(async () => ({
+          reachable: true,
+          ok: true
+        }))
+      },
+      hubspotMcpClient: {
+        getHealth: vi.fn(async () => ({
+          reachable: true,
+          ok: true
+        }))
+      }
+    };
+  }
+
   it("streams meta, tokens, sources, and done for a grounded answer", async () => {
-    const mcpClient = {
-      healthCheck: vi.fn(),
-      searchGithubDocs: vi.fn(async () => [
+    const deps = createDependencies();
+    deps.chatService.generateReply.mockResolvedValue({
+      text: "Use the Conversation tab to follow the discussion.",
+      sources: [
         {
-          chunkId: "chunk-1"
+          title: "About pull requests",
+          url: "https://docs.github.com/pull-requests",
+          quote: "The Conversation tab of a pull request displays a description of the changes."
         }
-      ]),
-      getGithubDocChunk: vi.fn(async () => ({
-        chunkId: "chunk-1",
-        repoPath: "content/pull-requests.md",
-        pageTitle: "About pull requests",
-        sectionTitle: "Working with pull requests",
-        canonicalUrl: "https://docs.github.com/pull-requests",
-        rawMarkdown: "",
-        plainText:
-          "The Conversation tab of a pull request displays a description of the changes."
-      }))
-    };
-
-    const openAiGateway = {
-      generateGroundedAnswer: vi.fn(async () => ({
-        answer: "Use the Conversation tab to follow the discussion.",
-        citations: [
-          {
-            quote: "The Conversation tab of a pull request displays a description of the changes.",
-            url: "https://docs.github.com/pull-requests"
-          }
-        ]
-      }))
-    };
-
-    const chatService = new ChatService({
-      conversationStore: new ConversationStore(60_000, 10),
-      mcpClient: mcpClient as never,
-      openAiGateway
+      ]
     });
 
     const app = createApp({
       config,
-      chatService,
-      mcpClient: mcpClient as never
+      chatService: deps.chatService as never,
+      githubDocsMcpClient: deps.githubDocsMcpClient as never,
+      hubspotMcpClient: deps.hubspotMcpClient as never
     });
 
     const response = await request(app)
@@ -74,66 +69,82 @@ describe("chat API", () => {
     expect(response.text).toContain("https://docs.github.com/pull-requests");
   });
 
-  it("falls back instead of inventing an answer when retrieval is empty", async () => {
-    const mcpClient = {
-      healthCheck: vi.fn(),
-      searchGithubDocs: vi.fn(async () => []),
-      getGithubDocChunk: vi.fn()
-    };
-
-    const openAiGateway = {
-      generateGroundedAnswer: vi.fn()
-    };
-
-    const chatService = new ChatService({
-      conversationStore: new ConversationStore(60_000, 10),
-      mcpClient: mcpClient as never,
-      openAiGateway
+  it("streams ticket events for ticket actions", async () => {
+    const deps = createDependencies();
+    deps.chatService.generateReply.mockResolvedValue({
+      text: "I drafted the support ticket.",
+      sources: [],
+      ticket: {
+        mode: "draft",
+        ticketId: "Pending creation",
+        subject: "Checkout failure",
+        customerEmail: "octo@example.com",
+        priority: "HIGH",
+        statusLabel: "Draft"
+      }
     });
 
     const app = createApp({
       config,
-      chatService,
-      mcpClient: mcpClient as never
+      chatService: deps.chatService as never,
+      githubDocsMcpClient: deps.githubDocsMcpClient as never,
+      hubspotMcpClient: deps.hubspotMcpClient as never
     });
 
     const response = await request(app)
       .post("/api/chat")
       .send({
         conversationId: "conversation-1",
-        message: "Tell me something unsupported"
+        message: "Create a support ticket."
       })
       .expect(200);
 
-    expect(response.text).toContain("I couldn't verify a supported answer");
-    expect(response.text).toContain("event: sources");
-    expect(openAiGateway.generateGroundedAnswer).not.toHaveBeenCalled();
+    expect(response.text).toContain("event: ticket");
+    expect(response.text).toContain("Checkout failure");
+  });
+
+  it("returns separate health states for both MCP dependencies", async () => {
+    const deps = createDependencies();
+    deps.hubspotMcpClient.getHealth.mockResolvedValue({
+      reachable: true,
+      ok: false,
+      error: "The OAuth token used to make this call expired."
+    });
+
+    const app = createApp({
+      config,
+      chatService: deps.chatService as never,
+      githubDocsMcpClient: deps.githubDocsMcpClient as never,
+      hubspotMcpClient: deps.hubspotMcpClient as never
+    });
+
+    const response = await request(app).get("/api/health").expect(503);
+
+    expect(response.body).toMatchObject({
+      ok: false,
+      openAiConfigured: true,
+      githubDocsMcp: {
+        reachable: true,
+        ok: true
+      },
+      hubspotMcp: {
+        reachable: true,
+        ok: false,
+        error: "The OAuth token used to make this call expired."
+      }
+    });
   });
 
   it("streams an explicit error when OpenAI is not configured", async () => {
-    const mcpClient = {
-      healthCheck: vi.fn(),
-      searchGithubDocs: vi.fn(),
-      getGithubDocChunk: vi.fn()
-    };
-
-    const openAiGateway = {
-      generateGroundedAnswer: vi.fn()
-    };
-
-    const chatService = new ChatService({
-      conversationStore: new ConversationStore(60_000, 10),
-      mcpClient: mcpClient as never,
-      openAiGateway
-    });
-
+    const deps = createDependencies();
     const app = createApp({
       config: {
         ...config,
         openAiApiKey: ""
       },
-      chatService,
-      mcpClient: mcpClient as never
+      chatService: deps.chatService as never,
+      githubDocsMcpClient: deps.githubDocsMcpClient as never,
+      hubspotMcpClient: deps.hubspotMcpClient as never
     });
 
     const response = await request(app)
@@ -146,6 +157,6 @@ describe("chat API", () => {
 
     expect(response.text).toContain("event: error");
     expect(response.text).toContain("OPENAI_API_KEY");
-    expect(openAiGateway.generateGroundedAnswer).not.toHaveBeenCalled();
+    expect(deps.chatService.generateReply).not.toHaveBeenCalled();
   });
 });

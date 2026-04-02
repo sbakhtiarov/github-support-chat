@@ -3,22 +3,41 @@ export interface ChatRequest {
   message: string;
 }
 
+export interface SupportTicketCard {
+  mode: "draft" | "created" | "status";
+  ticketId: string;
+  subject: string;
+  customerEmail?: string;
+  priority?: string;
+  statusLabel: string;
+  descriptionPreview?: string;
+  nextStepMessage?: string;
+}
+
 export interface SourceItem {
   title: string;
   url: string;
   quote: string;
 }
 
+export interface DependencyHealth {
+  reachable: boolean;
+  ok: boolean;
+  error?: string;
+}
+
 export interface HealthResponse {
   ok: boolean;
-  mcpReachable: boolean;
   openAiConfigured: boolean;
+  githubDocsMcp: DependencyHealth;
+  hubspotMcp: DependencyHealth;
 }
 
 export type ChatStreamEvent =
   | { type: "meta"; conversationId: string }
   | { type: "token"; text: string }
   | { type: "sources"; items: SourceItem[] }
+  | { type: "ticket"; ticket: SupportTicketCard }
   | { type: "done" }
   | { type: "error"; message: string };
 
